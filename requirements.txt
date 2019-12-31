@@ -3,3 +3,4 @@ iso8601
 tasklib
 caldav
 asyncws
+emoji

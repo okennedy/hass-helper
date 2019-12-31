@@ -3,13 +3,29 @@ from notify import NotificationGenerator, Notification
 from time import mktime
 
 class WeekdayNotifier(NotificationGenerator):
-  
+  """
+  Display a notification on specific days of the week
+
+  - dow(int:0-6)
+      The day of the week on which to display the message.  See:
+      https://docs.python.org/3.5/library/datetime.html#datetime.date.weekday
+      0 is Monday, 6 is Sunday.  
+  - message(str)
+      The message to display
+  - icon(str)
+      The icon to associate with the message
+  - priority(int, optional)
+      The priority at which to display the message
+  - status("info"|"warning"|"danger", optional)
+      The urgency of the message
+  """
+
   def __init__(self, **kwargs):
     super(WeekdayNotifier, self).__init__()
     self.dow = kwargs["day_of_week"]
     self.message = kwargs["message"]
     self.icon = kwargs["icon"]
-    self.priority = kwargs.get("prioirty", 0)
+    self.priority = kwargs.get("priority", 0)
     self.status = kwargs.get("status", "info")
 
   def update_poll_trigger(self):

@@ -6,6 +6,20 @@ import re
 
 
 class TaskWarriorNotifier(NotificationGenerator):
+  """
+  Generate notifications based on TaskWarrior tasks (https://taskwarrior.org/)
+
+  - filter(dict, optional):
+      Only display tasks matching a specific set of conditions.  See 
+      https://tasklib.readthedocs.io/en/latest/#filtering for filtering
+      syntax (dict fields are passed directly as arguments to tasklib's 
+      .filter function).
+  - due_cutoff(int, optional):
+      Only display tasks with a due date in the next `due_cutoff` days.
+      Defaults to 10 days.
+  - icon(str, optional)
+      The icon to associate with the notification
+  """
 
   def __init__(self, **kwargs):
     super(TaskWarriorNotifier, self).__init__(
@@ -22,6 +36,8 @@ class TaskWarriorNotifier(NotificationGenerator):
     # print("Filter: {}".format(self.filter))
     if self.filter is not None:
       tasks = tasks.filter(**self.filter)
+    else:
+      tasks = tasks.all()
     now = datetime.now(timezone.utc)
     self.notifications = [ 
       Notification(

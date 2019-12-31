@@ -1,8 +1,19 @@
 from lib.CalDav import CalDav
 from lib.Time import format_timedelta, days_until_start
+from lib.Unicode import extract_emoji
 from notify import NotificationGenerator, Notification
 
 class CalDavNotifier(NotificationGenerator):
+  """
+  Generate notifications for events from a CalDav server
+
+  - url(str)               : The URL of the caldav server+path
+  - calendars(list of str) : A list of calendars to display
+  - user(str)              : The CalDav username
+  - password(str)          : The CalDav password
+  - window(int)            : How far into the future (in seconds) 
+                             to display notifications
+  """
 
   def __init__(self, **kwargs):
     super(CalDavNotifier, self).__init__(
@@ -22,10 +33,11 @@ class CalDavNotifier(NotificationGenerator):
       Notification(
         body = "{}: {}".format(
           format_timedelta(event["start"]),
-          event["summary"]
+          text
         ),
         priority = -days_until_start(event["start"]),
-        icon = self.icon,
+        icon = "calendar-emoji/{:x}".format(ord(icon[0])) if len(icon) > 0 else self.icon,
       )
       for event in self.calendar.events()
+      for icon, text in [extract_emoji(event["summary"])]
     ]
