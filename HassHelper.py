@@ -21,11 +21,12 @@ class HassHelper:
 
   def __init__(self, host, api_key, notification_entity = "status.housewide"):
     self.hass = Hass(host, api_key)
+#    self.hass.start_thread()
     self.notifications = NotificationManager(self, notification_entity)
-    self.hass.start_thread()
     self.managers = [
       self.notifications
     ]
+
 
   def refresh(self):
     """
