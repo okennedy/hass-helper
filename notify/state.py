@@ -76,6 +76,8 @@ class SensorOfflineNotifier(NotificationGenerator):
     self.timeout = kwargs.get("timeout", 5*60*60)
 
   def last_update_timed_out(self, entity):
+    if entity.last_updated == None:
+      return False
     last_update = iso8601.parse_date(
       entity.last_updated,
       "%Y-%m-%dT%H:%M:%S.%f%z"
