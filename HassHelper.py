@@ -1,6 +1,7 @@
 import json
 from lib.HassLite import Hass
 from notify import NotificationManager
+from template import TemplateSensor
 from time import sleep
 from time import time as get_now
 
@@ -21,12 +22,16 @@ class HassHelper:
 
   def __init__(self, host, api_key, notification_entity = "status.housewide"):
     self.hass = Hass(host, api_key)
-#    self.hass.start_thread()
+    self.hass.start_thread()
     self.notifications = NotificationManager(self, notification_entity)
     self.managers = [
       self.notifications
     ]
 
+  def add_template(self, entity, sources, template):
+    self.managers += [
+      TemplateSensor(entity, sources, template, self)
+    ]
 
   def refresh(self):
     """
@@ -60,6 +65,6 @@ class HassHelper:
         sleep(sleep_time)
       for manager in self.managers:
         # print("Checking: {}".format(manager))
-        if manager.next_poll_trigger < now+1:
+        if manager.next_poll_trigger != None and manager.next_poll_trigger < now+1:
           manager.update()
 

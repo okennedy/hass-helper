@@ -6,9 +6,11 @@ import json
 from threading import Thread
 from os.path import expanduser
 import requests
+import sys
 
 class Hass:
   def __init__(self, host, token):
+    self.event_loop = None
     self.host = host
     self.token = token
     self.websocket = None
@@ -16,8 +18,11 @@ class Hass:
     self.handlers = {}
     self.state = {}
     self.global_callbacks = []
+    self.event_handlers = {}
 
   def __getitem__(self, entity):
+    if entity not in self.state:
+      self.state[entity] = HassEntity(None, None, None, None)
     return self.state[entity]
   
   def add_callback(self, callback, entity = None):
@@ -25,13 +30,26 @@ class Hass:
       self.global_callbacks += [callback]
     else:
       if entity not in self.state:
-        self.state[entity] = HassEntity(None, None)
+        self.state[entity] = HassEntity(None, None, None, None)
       self.state[entity].add_callback(callback)
+  
+  def event_callback(self, event_type, handler):
+    print(event_type)
+    if not (event_type in self.event_handlers):
+      self.event_handlers[event_type] = []
+      if self.event_loop is not None:
+        self.event_loop.create_task(
+          self.send_command({
+              "type": "subscribe_events",
+              "event_type" : event_type
+            })
+        )
+    self.event_handlers[event_type] += [handler]
 
   def post_update(self, entity, state, attributes = {}):
     url = "http://{}/api/states/{}".format(self.host, entity)
     headers = {
-      "x-ha-access" : self.token,
+      "Authorization" : "Bearer {}".format(self.token),
       "Content-Type" : "application/json"
     }
     r = requests.post(url, 
@@ -51,6 +69,7 @@ class Hass:
   def send_command(self, msg, handler = None):
     command_id = self.msg_id
     self.msg_id += 1
+    print("Command {}: {}".format(command_id, msg))
     msg = { 
       "id" : command_id,
       **msg
@@ -63,9 +82,20 @@ class Hass:
   def login(self):
     yield from self.send_json({
         "type" : "auth",
-        "api_password" : self.token
+        "access_token" : self.token
       })
 
+  @asyncio.coroutine
+  def call_service(self, domain, service, data = None, handler = None):
+    yield from self.send_command({
+        "type" : "call_service",
+        "domain" : domain,
+        "service" : service,
+        "service_data" : data
+      },
+      handler = handler
+    )
+    
   def process_state_record(self, record, skip_insert_if_exists = False):
     entity = record["entity_id"]
     state = record["state"]
@@ -84,22 +114,35 @@ class Hass:
     if entity in self.state:
       del self.state[entity]
 
+  @asyncio.coroutine
   def handle_event(self, event):
     event_type = event["event_type"]
+    print("Handling Event: {}".format(event_type))
+    sys.stdout.flush()
     if event_type == "state_changed": 
       new_state = event["data"]["new_state"]
       if new_state == None:
         self.delete_state(event["data"]["entity_id"])
       else:
         self.process_state_record(new_state)
+    elif event_type in self.event_handlers:
+      for handler in self.event_handlers[event_type]:
+        yield from handler(self, event)
     else:
       print(event)
 
   @asyncio.coroutine
   def subscribe_events(self):
     yield from self.send_command({
-        "type": "subscribe_events"
+        "type": "subscribe_events",
+        "event_type": "state_changed"
       })
+    for event_type in self.event_handlers:
+      print("EVENT TYPE: {}".format(event_type)) 
+      yield from self.send_command({
+          "type": "subscribe_events",
+          "event_type" : event_type
+        })
 
   def finish_load_state(self, state):
     for record in state:
@@ -124,6 +167,7 @@ class Hass:
         break
       msg = json.loads(msg)
       event = msg["type"]
+      print("Message: {}".format(msg))
       if event == "auth_required":
         yield from self.login()
       elif event == "auth_ok":
@@ -132,7 +176,7 @@ class Hass:
       elif event == "auth_invalid":
         raise Exception(event["message"])
       elif event == "event":
-        self.handle_event(msg["event"])
+        yield from self.handle_event(msg["event"])
       elif event == "result":
         if msg["success"] == True:
           handler = self.handlers.get(msg["id"], None)
@@ -142,6 +186,7 @@ class Hass:
           print(event)
 
   def run_event_loop(self, loop = asyncio.get_event_loop()):
+    self.event_loop = loop
     loop.run_until_complete(self.maintain())
     loop.close()
 
@@ -151,6 +196,7 @@ class Hass:
     self.run_event_loop(loop)
 
   def start_thread(self):
+    #print("STARTING THREAD")
     try:
       thread = Thread(
         target = self.run_threaded_event_loop

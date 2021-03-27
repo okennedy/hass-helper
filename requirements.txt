@@ -4,3 +4,6 @@ tasklib
 caldav
 asyncws
 emoji
+pytz
+tzlocal
+feedparser
